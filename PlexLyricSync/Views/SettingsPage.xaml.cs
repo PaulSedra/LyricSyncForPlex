@@ -1,6 +1,8 @@
 using System;
+using System.Threading;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Controls.Primitives;
 using Microsoft.UI.Xaml.Navigation;
 using PlexLyricSync.Utils;
 using PlexLyricSync.Core.Models;
@@ -23,6 +25,7 @@ public sealed partial class SettingsPage
     protected override void OnNavigatedTo(NavigationEventArgs e)
     {
         base.OnNavigatedTo(e);
+        DetachMainWindow();
         _mainWindow = e.Parameter as MainWindow;
         _config = ConfigLoader.LoadExisting();
 
@@ -31,6 +34,7 @@ public sealed partial class SettingsPage
 
         PlexUrlBox.Text = _config.PlexBaseUrl;
         PlexTokenBox.Text = _config.PlexToken;
+        SetPlaybackSpeedUi(_mainWindow?.PlaybackSpeed ?? _config.PlaybackSpeed);
         SyncedLinesBox.Value = _config.SyncedLyricLines;
         ShowJapaneseTransliterationSwitch.IsOn = _config.ShowJapaneseTransliteration;
         _loading = false;
@@ -71,6 +75,33 @@ public sealed partial class SettingsPage
         SaveConfigAndRestart();
     }
 
+    protected override void OnNavigatedFrom(NavigationEventArgs e)
+    {
+        DetachMainWindow();
+
+        base.OnNavigatedFrom(e);
+    }
+
+    private void PlaybackSpeedChanged(object sender, RangeBaseValueChangedEventArgs args)
+    {
+        if (_loading || _mainWindow is null) return;
+
+        double playbackSpeed = Config.ClampPlaybackSpeed(args.NewValue);
+        SetPlaybackSpeedUi(playbackSpeed);
+
+        _config.PlaybackSpeed = playbackSpeed;
+        ConfigLoader.SaveConfig(_config);
+        _mainWindow.PlaybackSpeed = playbackSpeed;
+        _ = _mainWindow.ApplyPlaybackSpeedAsync(CancellationToken.None);
+    }
+
+    private void SetPlaybackSpeedUi(double playbackSpeed)
+    {
+        playbackSpeed = Config.ClampPlaybackSpeed(playbackSpeed);
+        PlaybackSpeedSlider.Value = playbackSpeed;
+        PlaybackSpeedLabel.Text = playbackSpeed == 1.0 ? "1x" : $"{playbackSpeed:0.##}x";
+    }
+
     private void DebounceTimer_Tick(object? sender, object e)
     {
         _debounceTimer.Stop();
@@ -89,12 +120,20 @@ public sealed partial class SettingsPage
 
     private void BackButton_Click(object sender, RoutedEventArgs e)
     {
-        _mainWindow?.CloseSettings();
+        MainWindow? mainWindow = _mainWindow;
+        DetachMainWindow();
+        mainWindow?.CloseSettings();
+    }
+
+    private void DetachMainWindow()
+    {
+        _mainWindow = null;
     }
 
     private void NavTabs_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
         PlexPanel.Visibility = Visibility.Collapsed;
+        PlaybackPanel.Visibility = Visibility.Collapsed;
         LyricsPanel.Visibility = Visibility.Collapsed;
 
         switch (NavTabs.SelectedIndex)
@@ -103,6 +142,9 @@ public sealed partial class SettingsPage
                 PlexPanel.Visibility = Visibility.Visible;
                 break;
             case 1:
+                PlaybackPanel.Visibility = Visibility.Visible;
+                break;
+            case 2:
                 LyricsPanel.Visibility = Visibility.Visible;
                 break;
         }

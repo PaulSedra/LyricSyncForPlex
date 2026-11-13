@@ -36,22 +36,43 @@ public static class LyricsClient
     /// <param name="duration">track duration</param>
     /// <param name="ct">cancellation token</param>
     /// <returns>LyricsData (optional): remote lyrics if found</returns>
-    public static async Task<LyricsFile?> GetRemoteLyricsAsync(string artist, string album, string title, int duration, CancellationToken ct)
+    public static async Task<LyricsFile?> GetRemoteLyricsAsync(
+        string artist,
+        string album,
+        string title,
+        int duration,
+        CancellationToken ct,
+        LyricsFile? existingLocalLyrics = null,
+        HttpClient? http = null)
     {
+        HttpClient client = http ?? Http;
+
         // grab lyrics from lrclib.net by matching aatd
         string url = $"{LrclibEndpoint}?artist_name={Uri.EscapeDataString(artist)}&album_name={Uri.EscapeDataString(album)}&track_name={Uri.EscapeDataString(title)}&duration={Uri.EscapeDataString(duration.ToString())}";
-        HttpResponseMessage resp = await Http.GetAsync(url, ct);
+        HttpResponseMessage resp = await client.GetAsync(url, ct);
         if (!resp.IsSuccessStatusCode) return null;
         LrcLibResponse? doc = await resp.Content.ReadFromJsonAsync<LrcLibResponse>(cancellationToken: ct);
         LyricsFile lyricsFile = new(doc?.SyncedLyrics, doc?.PlainLyrics, null);
-        if (doc is not null) return LrcParser.WriteLyrics(lyricsFile, artist, album, title);
+        if (doc is not null)
+            return ShouldSkipRemoteWrite(existingLocalLyrics, lyricsFile)
+                ? null
+                : LrcParser.WriteLyrics(lyricsFile, artist, album, title);
 
         // grab lyrics from lrclib.net by matthing atd
         url = $"{LrclibEndpoint}?artist_name={Uri.EscapeDataString(artist)}&track_name={Uri.EscapeDataString(title)}&duration={Uri.EscapeDataString(duration.ToString())}";
-        resp = await Http.GetAsync(url, ct);
+        resp = await client.GetAsync(url, ct);
         if (!resp.IsSuccessStatusCode) return null;
         doc = await resp.Content.ReadFromJsonAsync<LrcLibResponse>(cancellationToken: ct);
         lyricsFile = new LyricsFile(doc?.SyncedLyrics, doc?.PlainLyrics, null);
-        return doc is null ? null : LrcParser.WriteLyrics(lyricsFile, artist, album, title);
+        if (doc is null) return null;
+
+        return ShouldSkipRemoteWrite(existingLocalLyrics, lyricsFile)
+            ? null
+            : LrcParser.WriteLyrics(lyricsFile, artist, album, title);
     }
+
+    private static bool ShouldSkipRemoteWrite(LyricsFile? existingLocalLyrics, LyricsFile remoteLyrics) =>
+        !string.IsNullOrWhiteSpace(existingLocalLyrics?.Synced) &&
+        string.IsNullOrWhiteSpace(remoteLyrics.Synced) &&
+        !string.IsNullOrWhiteSpace(remoteLyrics.Plain);
 }

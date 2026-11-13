@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Globalization;
 using System.IO;
 using System.Threading.Tasks;
 using Microsoft.UI.Xaml;
@@ -26,13 +27,15 @@ public static class ConfigLoader
 
     public static void SaveConfig(Config cfg)
     {
+        cfg.Normalize();
         string path = GetConfigPath();
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
         File.WriteAllText(path,
             $"PlexBaseUrl: \"{cfg.PlexBaseUrl}\"{Environment.NewLine}" +
             $"PlexToken: \"{cfg.PlexToken}\"{Environment.NewLine}" +
             $"SyncedLyricLines: {cfg.SyncedLyricLines}{Environment.NewLine}" +
-            $"ShowJapaneseTransliteration: {cfg.ShowJapaneseTransliteration}{Environment.NewLine}");
+            $"ShowJapaneseTransliteration: {cfg.ShowJapaneseTransliteration}{Environment.NewLine}" +
+            $"PlaybackSpeed: {cfg.PlaybackSpeed.ToString(CultureInfo.InvariantCulture)}{Environment.NewLine}");
     }
 
     public static Config LoadConfigAsync()
@@ -99,6 +102,7 @@ public static class ConfigLoader
             cfg.ShowJapaneseTransliteration = false;
         }
 
+        cfg.Normalize();
         return cfg;
     }
 }

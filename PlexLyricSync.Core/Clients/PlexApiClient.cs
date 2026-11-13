@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Net.Http;
 using System.Threading;
@@ -118,6 +119,20 @@ public sealed class PlexApiClient(string plexBaseUrl, string plexToken)
     /// <param name="ct">cancellation token</param>
     public Task<bool> PlayAsync(string clientUrl, string clientId, CancellationToken ct) =>
         SendPlaybackCommandAsync(clientUrl, clientId, "play", ct);
+
+    public async Task<bool> SetPlaybackSpeedAsync(string clientUrl, string clientId, double speed, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(clientId)) return false;
+
+        speed = Config.ClampPlaybackSpeed(speed);
+        string formattedSpeed = speed.ToString("0.##", CultureInfo.InvariantCulture);
+        using HttpRequestMessage request = Clients.Http.HttpRequestMessage(
+            HttpMethod.Get,
+            $"{clientUrl}/player/playback/setParameters?speed={formattedSpeed}&type=music",
+            _headersWithClientId(clientId));
+        HttpResponseMessage response = await Http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct);
+        return response.IsSuccessStatusCode;
+    }
 
     /// <summary>
     /// Sends a skipNext command to the specified Plex client.

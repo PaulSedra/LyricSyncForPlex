@@ -30,7 +30,9 @@ public sealed partial class MainWindow
     private bool _trackLiked;
     internal string State = "";
     internal int DurationMs;
+    internal double PlaybackSpeed = 1.0;
     private int _viewOffsetMs;
+    private double _lastAppliedPlaybackSpeed = double.NaN;
 
     // prediction
     internal int PredictedViewOffsetMs;
@@ -108,6 +110,8 @@ public sealed partial class MainWindow
         Config config = await ConfigLoader.LoadConfigAsync(this);
         _plexBaseUrl = config.PlexBaseUrl;
         _plexToken = config.PlexToken;
+        PlaybackSpeed = Config.ClampPlaybackSpeed(config.PlaybackSpeed);
+        _lastAppliedPlaybackSpeed = double.NaN;
         LyricsView.SetSyncedLineCount(config.SyncedLyricLines);
         LyricsView.SetShowJapaneseTransliteration(config.ShowJapaneseTransliteration);
 
@@ -143,6 +147,7 @@ public sealed partial class MainWindow
             if (session is null)
             {
                 _ratingKey = _artist = _album = _title = _albumArtUrl = State = "";
+                _lastAppliedPlaybackSpeed = double.NaN;
                 DurationMs = 0;
                 _viewOffsetMs = 0;
 
@@ -226,7 +231,7 @@ public sealed partial class MainWindow
         }
 
         DateTime now = DateTime.UtcNow;
-        int elapsed = (int)Math.Ceiling((now - PredictedViewOffsetUtc).TotalMilliseconds);
+        int elapsed = (int)Math.Ceiling((now - PredictedViewOffsetUtc).TotalMilliseconds * PlaybackSpeed);
         PredictedViewOffsetMs = State.Equals("playing", StringComparison.OrdinalIgnoreCase)
             ? Math.Clamp(PredictedViewOffsetMs + Math.Max(0, elapsed), 0, DurationMs)
             : PredictedViewOffsetMs;
@@ -249,6 +254,24 @@ public sealed partial class MainWindow
             PredictedViewOffsetUtc = DateTime.UtcNow;
 
             DispatcherQueue.TryEnqueue(UpdateTrackProgress);
+        }
+        catch
+        {
+            // ignored
+        }
+    }
+
+    internal async Task ApplyPlaybackSpeedAsync(CancellationToken ct)
+    {
+        try
+        {
+            if (Plex is null || string.IsNullOrWhiteSpace(ClientUrl) || string.IsNullOrWhiteSpace(ClientId)) return;
+            if (Math.Abs(_lastAppliedPlaybackSpeed - PlaybackSpeed) < 0.001) return;
+
+            bool ok = await Plex.SetPlaybackSpeedAsync(ClientUrl, ClientId, PlaybackSpeed, ct);
+            if (!ok) return;
+
+            _lastAppliedPlaybackSpeed = PlaybackSpeed;
         }
         catch
         {
