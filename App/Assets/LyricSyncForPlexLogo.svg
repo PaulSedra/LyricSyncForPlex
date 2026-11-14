@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg id="Layer_1" xmlns="http://www.w3.org/2000/svg" version="1.1" viewBox="0 0 1254 1254">
+  <!-- Generator: Adobe Illustrator 29.0.1, SVG Export Plug-In . SVG Version: 2.1.0 Build 192)  -->
+  <defs>
+    <style>
+      .st0, .st1 {
+        fill: #f5b400;
+      }
+
+      .st2 {
+        fill: #111;
+      }
+
+      .st1 {
+        fill-rule: evenodd;
+      }
+    </style>
+  </defs>
+  <rect class="st2" width="1254" height="1254" rx="60" ry="60"/>
+  <rect class="st0" x="100" y="1035" width="1060" height="60" rx="30" ry="30"/>
+  <rect class="st0" x="100" y="816" width="457.7" height="60" rx="30" ry="30"/>
+  <rect class="st0" x="100" y="597" width="390.3" height="60" rx="30" ry="30"/>
+  <rect class="st0" x="100" y="378" width="542" height="60" rx="30" ry="30"/>
+  <rect class="st0" x="100" y="159" width="672.5" height="60" rx="30" ry="30"/>
+  <g>
+    <path class="st1" d="M1159.5,247.9l-393.2,137.8v-66.2c-.2-23.1,4.2-34.1,24.5-41.2l329.9-107.2c13.9-4.5,37-.9,38.8,23v53.7Z"/>
+    <rect class="st0" x="612.1" y="516.1" width="368.1" height="60" transform="translate(1342.4 -250.1) rotate(90)"/>
+    <rect class="st0" x="945.4" y="397.4" width="368.1" height="60" transform="translate(1556.8 -702.1) rotate(90)"/>
+    <ellipse class="st0" cx="717.6" cy="747.7" rx="111.3" ry="95.2" transform="translate(-249.6 375.5) rotate(-25.1)"/>
+    <ellipse class="st0" cx="1051.4" cy="631.9" rx="111.3" ry="95.2" transform="translate(-168.8 506.3) rotate(-25.1)"/>
+  </g>
+</svg>

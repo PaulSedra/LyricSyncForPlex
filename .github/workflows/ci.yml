@@ -27,10 +27,10 @@ jobs:
           dotnet-version: 8.0.x
 
       - name: Restore solution
-        run: dotnet restore PlexLyricSync.sln
+        run: dotnet restore LyricSyncForPlex.sln
 
       - name: Build and test solution
-        run: dotnet test PlexLyricSync.sln --configuration Debug --no-restore
+        run: dotnet test LyricSyncForPlex.sln --configuration Debug --no-restore
 
   sonar:
     name: SonarQube Scan
@@ -54,7 +54,7 @@ jobs:
           java-version: '21'
 
       - name: Restore solution
-        run: dotnet restore PlexLyricSync.sln
+        run: dotnet restore LyricSyncForPlex.sln
 
       - name: Install SonarScanner for .NET
         shell: pwsh

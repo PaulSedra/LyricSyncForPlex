@@ -1,0 +1,11 @@
+{
+  "profiles": {
+    "LyricSync for Plex (Package)": {
+      "commandName": "MsixPackage",
+      "alwaysReinstallApp": false
+    },
+    "LyricSync for Plex (Unpackaged)": {
+      "commandName": "Project"
+    }
+  }
+}

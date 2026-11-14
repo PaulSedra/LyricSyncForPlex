@@ -1,0 +1,25 @@
+<UserControl
+    x:Class="LyricSyncForPlex.Views.LyricsView"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+        <StackPanel
+            Grid.Row="0" Orientation="Horizontal" VerticalAlignment="Top" HorizontalAlignment="Right" Margin="0 -45 0 0" Spacing="4">
+            <Button x:Name="LyUpdate" Visibility="Collapsed" Background="Transparent" BorderBrush="Transparent" Padding="0" Height="18" Width="18">
+                <FontIcon x:Name="RefreshIcon" Glyph="&#xe777;" FontFamily="Segoe Fluent Icons" Foreground="White" FontSize="10"/>
+            </Button>
+            <TextBlock x:Name="LySource" VerticalAlignment="Top" FontSize="12" Foreground="White" Opacity="0.7"/>
+        </StackPanel>
+
+        <Grid Grid.Row="0" Margin="0 20 0 80">
+            <StackPanel x:Name="SyncedPanel" VerticalAlignment="Center" Spacing="2"/>
+            <ScrollViewer x:Name="PlainScroll" Visibility="Collapsed" VerticalScrollBarVisibility="Hidden" HorizontalScrollBarVisibility="Disabled">
+                <TextBlock x:Name="PlainText" FontSize="20" Foreground="White" Opacity="0.80" TextWrapping="WrapWholeWords" TextAlignment="Left"/>
+            </ScrollViewer>
+        </Grid>
+    </Grid>
+</UserControl>

@@ -1,6 +1,6 @@
 # Contributing
 
-Thanks for contributing to PlexLyricSync. Keep changes focused, describe their
+Thanks for contributing to LyricSync for Plex. Keep changes focused, describe their
 user impact, and include tests for behavior changes.
 
 ## Development setup
@@ -9,8 +9,8 @@ Build and test the Windows app from a Windows machine with the .NET 8 SDK.
 From the repository root, restore dependencies and run the solution tests:
 
 ```powershell
-dotnet restore PlexLyricSync.sln
-dotnet test PlexLyricSync.sln --configuration Debug --no-restore
+dotnet restore LyricSyncForPlex.sln
+dotnet test LyricSyncForPlex.sln --configuration Debug --no-restore
 ```
 
 The test command builds the test projects and runs the unit and integration

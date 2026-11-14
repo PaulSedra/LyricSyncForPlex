@@ -1,0 +1,4 @@
+interface:
+  display_name: "LyricSync for Plex Release"
+  short_description: "Prepare and publish Windows MSIX releases"
+  default_prompt: "Use $lyricsync-for-plex-release to prepare a eersioned LyricSyncForPlex release."

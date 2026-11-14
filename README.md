@@ -1,8 +1,8 @@
-# PlexLyricSync
+# LyricSync for Plex
 
 [![Windows CI](https://github.com/PaulSedra/PlexLyricSync/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/PaulSedra/PlexLyricSync/actions/workflows/ci.yml)
 
-PlexLyricSync is a Windows desktop companion for Plexamp. It follows the
+LyricSync for Plex is a Windows desktop companion for Plexamp. It follows the
 active Plexamp session, displays lyrics in time with playback, and lets you
 control playback from your desktop.
 
@@ -20,7 +20,7 @@ control playback from your desktop.
   is shown.
 
 Lyrics are stored in the Windows Music folder under
-`PlexLyricSync/lyrics/<Artist>/<Album>/`.
+  `PlexLyricSync/lyrics/<Artist>/<Album>/`
 
 ## Quick start
 
@@ -31,16 +31,16 @@ for published MSIX packages.
 
 ### Configure
 
-1. Launch PlexLyricSync. On first launch, enter your Plex server URL and Plex
-   token. You can update these later in **Settings → Plex**.
+1. Launch LyricSync for Plex. On first launch, enter your Plex server URL and
+   Plex token. You can update these later in **Settings → Plex**.
 2. Use a server URL in the form `http://<server-ip>:<port>`. Check your Plex
    server's Remote Access settings for its port.
-3. Start playing music in Plexamp. PlexLyricSync finds the active session and
-   displays available lyrics.
+3. Start playing music in Plexamp. LyricSync for Plex finds the active session
+   and displays available lyrics.
 4. Adjust playback speed and lyric display options in **Settings**.
 
-PlexLyricSync saves settings to
-`<Music folder>/PlexLyricSync/appsettings.config.yaml`. The file includes your
+LyricSync for Plex saves settings to
+  `<Music folder>/PlexLyricSync/appsettings.config.yaml`. The file includes your
 Plex token in plain text, so keep it private. Lyrics and romanized lyrics are
 saved alongside one another under the `lyrics` folder.
 
@@ -52,16 +52,16 @@ saved alongside one another under the `lyrics` folder.
 - A Plex server URL and token.
 
 The app uses the MSIX packaging model. The minimum Windows version is declared
-in `PlexLyricSync/Package.appxmanifest`.
+in `App/Package.appxmanifest`.
 
 ## Development
 
 Install the .NET 8 SDK, then run these commands from the repo root on Windows:
 
-```powershell
-dotnet restore PlexLyricSync.sln
-dotnet test PlexLyricSync.sln --configuration Debug --no-restore
-```
+~~~powershell
+dotnet restore LyricSyncForPlex.sln
+dotnet test LyricSyncForPlex.sln --configuration Debug --no-restore
+~~~
 
 The solution contains the WinUI app, its shared core library, unit tests, and
 integration tests. GitHub Actions runs the solution tests on Windows for pushes
@@ -69,15 +69,14 @@ and pull requests to `main`.
 
 ## Project layout
 
-| Path                              | Purpose                                                       |
-|-----------------------------------|---------------------------------------------------------------|
-| `PlexLyricSync/`                  | WinUI desktop app and MSIX package configuration              |
-| `PlexLyricSync.Core/`             | Plex API, lyric lookup and parsing, and Japanese romanization |
-| `PlexLyricSync.Tests/`            | Unit tests                                                    |
-| `PlexLyricSync.IntegrationTests/` | Integration tests for core behavior                           |
-| `.github/workflows/ci.yml`        | Windows build and test workflow                               |
+| Path | Purpose |
+|---|---|
+| `App/` | WinUI desktop app and MSIX package configuration |
+| `Core/` | Shared Plex API, lyric lookup and parsing, and Japanese romanization |
+| `Tests/` | Unit tests |
+| `IntegrationTests/` | Integration tests for core behavior |
+| `.github/workflows/ci.yml` | Windows build and test workflow |
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup, test commands,
-and pull request guidance.
+See `[CONTRIBUTING.md](CONTRIBUTING.md)` for development setup, test commands, and pull request guidance.

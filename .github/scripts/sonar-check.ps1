@@ -4,7 +4,7 @@ $ProgressPreference = 'SilentlyContinue'
 $sonarVersion = '26.10.0.133078'
 $sonarHostUrl = 'http://127.0.0.1:9000'
 $projectKey = 'PlexLyricSync'
-$projectName = 'PlexLyricSync'
+$projectName = 'LyricSync for Plex'
 $runnerTemp = $env:RUNNER_TEMP
 $archivePath = Join-Path $runnerTemp "sonarqube-$sonarVersion.zip"
 $extractPath = Join-Path $runnerTemp 'sonarqube'
@@ -409,7 +409,7 @@ try {
 
     Invoke-ScannerCommandWithoutGitHubContext -ArgumentList $beginArguments
     Invoke-CheckedCommand -FilePath 'dotnet' -ArgumentList @(
-        'test', 'PlexLyricSync.sln', '--configuration', 'Debug', '--no-restore',
+        'test', 'LyricSyncForPlex.sln', '--configuration', 'Debug', '--no-restore',
         '--collect', 'XPlat Code Coverage', '--settings', '.github/sonar.runsettings'
     )
     Invoke-ScannerCommandWithoutGitHubContext -ArgumentList @(

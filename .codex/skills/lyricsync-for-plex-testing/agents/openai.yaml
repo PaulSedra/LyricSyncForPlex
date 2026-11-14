@@ -1,0 +1,4 @@
+interface:
+  display_name: "LyricSync for Plex Testing"
+  short_description: "Build, test, package, and launch LyricSync for Plex"
+  default_prompt: "Use $lyricsync-for-plex-testing to validate LyricSync for Plex after code changes."
