@@ -31,3 +31,82 @@ jobs:
 
       - name: Build and test solution
         run: dotnet test PlexLyricSync.sln --configuration Debug --no-restore
+
+  sonar:
+    name: SonarQube Scan
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Set up Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Restore solution
+        run: dotnet restore PlexLyricSync.sln
+
+      - name: Install SonarScanner for .NET
+        shell: pwsh
+        run: |
+          dotnet tool install --global dotnet-sonarscanner --version 12.1.0
+          "$env:USERPROFILE\.dotnet\tools" >> $env:GITHUB_PATH
+
+      - name: Run SonarQube analysis
+        id: sonar
+        shell: pwsh
+        env:
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PR_DIFF_CHECK_ENABLED: ${{ github.event_name == 'pull_request' }}
+        run: ./.github/scripts/sonar-check.ps1
+
+      - name: Upload Sonar scan result badge data
+        if: ${{ steps.sonar.outcome == 'success' }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: sonar-scan-results-badges
+          path: coverage-badge/*.json
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Enforce Sonar quality gate
+        if: ${{ steps.sonar.outputs.blocking_issue_count != '0' || steps.sonar.outputs.coverage_below_60 == 'true' }}
+        shell: pwsh
+        env:
+          BLOCKING_ISSUE_COUNT: ${{ steps.sonar.outputs.blocking_issue_count }}
+          COVERAGE_BELOW_60: ${{ steps.sonar.outputs.coverage_below_60 }}
+          COVERAGE: ${{ steps.sonar.outputs.coverage }}
+        run: |
+          $failed = $false
+          if ([int]$env:BLOCKING_ISSUE_COUNT -gt 0) {
+            Write-Host "::error::Sonar found $env:BLOCKING_ISSUE_COUNT blocking issue(s) in this PR."
+            $failed = $true
+          }
+          if ($env:COVERAGE_BELOW_60 -eq 'true') {
+            Write-Host "::error::Code coverage is $($env:COVERAGE)%, below the 60% minimum."
+            $failed = $true
+          }
+          if ($failed) {
+            exit 1
+          }
+
+      - name: Report Sonar scan results unavailable
+        if: ${{ failure() && steps.sonar.outcome != 'success' }}
+        shell: pwsh
+        run: |
+          @"
+          ## Sonar scan results
+
+          Sonar scan results could not be produced in the temporary SonarQube instance.
+          "@ | Add-Content -Path $env:GITHUB_STEP_SUMMARY -Encoding utf8

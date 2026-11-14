@@ -18,6 +18,7 @@ config/
 Properties/
 *.runsettings
 *.pfx
+!.github/sonar.runsettings
 
 # Project-local scratch folders
 Archive/
