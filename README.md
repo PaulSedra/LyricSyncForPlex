@@ -1,13 +1,18 @@
 # LyricSync for Plex
 
-[![Windows CI](https://github.com/PaulSedra/PlexLyricSync/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/PaulSedra/PlexLyricSync/actions/workflows/ci.yml)
+[![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
+[![LyricSync for Plex Release](https://img.shields.io/github/v/release/PaulSedra/LyricSyncForPlex?label=LyricSync%20for%20Plex%20Release)](https://github.com/PaulSedra/LyricSyncForPlex/releases/latest)
+[![Test coverage](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2FPaulSedra%2FLyricSyncForPlex%2Fcoverage%2Fcoverage.json)](Tests/)
+[![Lines of code](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2FPaulSedra%2FLyricSyncForPlex%2Fcoverage%2Flines-of-code.json)](LyricSyncForPlex.sln)
+[![.NET 8](https://img.shields.io/badge/.NET-8.0-512BD4?logo=dotnet&logoColor=white)](https://dotnet.microsoft.com/en-us/download/dotnet/8.0)
+[![Build](https://github.com/PaulSedra/LyricSyncForPlex/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/PaulSedra/LyricSyncForPlex/actions/workflows/ci.yml)
 
 LyricSync for Plex is a Windows desktop companion for Plexamp. It follows the
 active Plexamp session, displays lyrics in time with playback, and lets you
 control playback from your desktop.
 
 [Features](#features) · [Quick start](#quick-start) ·
-[Development](#development) · [Project layout](#project-layout)
+[Development](#development) · [Project layout](#project-layout) · [License](#license)
 
 ## Features
 
@@ -75,8 +80,14 @@ and pull requests to `main`.
 | `Core/` | Shared Plex API, lyric lookup and parsing, and Japanese romanization |
 | `Tests/` | Unit tests |
 | `IntegrationTests/` | Integration tests for core behavior |
-| `.github/workflows/ci.yml` | Windows build and test workflow |
+| `.github/workflows/ci.yml` | Build and test workflow |
+| `.github/workflows/sonar.yml` | SonarQube scan workflow |
+| `.github/workflows/publish-coverage.yml` | Publish coverage and lines-of-code badges |
 
 ## Contributing
 
 See `[CONTRIBUTING.md](CONTRIBUTING.md)` for development setup, test commands, and pull request guidance.
+
+## License
+
+Licensed under the Apache License, Version 2.0. See [LICENSE](LICENSE).

@@ -1,0 +1,141 @@
+name: Publish Sonar scan result badges
+
+on:
+  workflow_run:
+    workflows:
+      - SonarQube Scan
+    types:
+      - completed
+    branches:
+      - main
+
+permissions:
+  actions: read
+  contents: write
+
+jobs:
+  publish-sonar-scan-results:
+    name: Publish Sonar scan result badges
+    if: >-
+      ${{ github.event.workflow_run.head_branch == 'main' &&
+          github.event.workflow_run.event != 'pull_request' }}
+    runs-on: ubuntu-latest
+    concurrency:
+      group: coverage-badge
+      cancel-in-progress: false
+    steps:
+      - name: Check for Sonar scan results artifact
+        id: sonar-scan-results-artifact
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          UPSTREAM_RUN_ID: ${{ github.event.workflow_run.id }}
+        run: |
+          set -euo pipefail
+
+          echo "found=false" >> "$GITHUB_OUTPUT"
+          curl_args=(
+            --fail
+            --silent
+            --show-error
+            --header "Accept: application/vnd.github+json"
+            --header "Authorization: Bearer $GH_TOKEN"
+            --header "X-GitHub-Api-Version: 2022-11-28"
+            "$GITHUB_API_URL/repos/$GITHUB_REPOSITORY/actions/runs/$UPSTREAM_RUN_ID/artifacts"
+          )
+          artifacts="$(curl "${curl_args[@]}")"
+          if jq -e '.artifacts[]? | select(.name == "sonar-scan-results-badges" and .expired == false)' <<<"$artifacts" >/dev/null; then
+            echo "found=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Check out upstream main commit
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Download Sonar scan result artifact
+        if: ${{ steps.sonar-scan-results-artifact.outputs.found == 'true' }}
+        uses: actions/download-artifact@v7
+        with:
+          name: sonar-scan-results-badges
+          path: ${{ runner.temp }}/sonar-scan-results-badges
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          repository: ${{ github.repository }}
+          run-id: ${{ github.event.workflow_run.id }}
+
+      - name: Publish Sonar scan result JSON files
+        if: ${{ steps.sonar-scan-results-artifact.outputs.found == 'true' }}
+        env:
+          SOURCE_RUN_ATTEMPT: ${{ github.event.workflow_run.run_attempt }}
+          SOURCE_RUN_NUMBER: ${{ github.event.workflow_run.run_number }}
+          SOURCE_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          set -euo pipefail
+
+          scan_results_dir="$RUNNER_TEMP/sonar-scan-results-badges"
+          coverage_file="$scan_results_dir/coverage.json"
+          loc_file="$scan_results_dir/lines-of-code.json"
+          jq -e '
+            .schemaVersion == 1 and .label == "coverage" and
+            (.message | test("^[0-9]+(\\.[0-9]+)?%$")) and .color == "yellowgreen"
+          ' "$coverage_file" >/dev/null
+          jq -e '
+            .schemaVersion == 1 and .label == "Lines of code" and
+            (.message | test("^[0-9]+$")) and .color == "blue"
+          ' "$loc_file" >/dev/null
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          coverage_ref="$(git ls-remote --heads origin refs/heads/coverage)"
+          if [[ -n "$coverage_ref" ]]; then
+            git fetch --no-tags origin refs/heads/coverage
+            git switch --force-create coverage FETCH_HEAD
+          else
+            git switch --orphan coverage
+            git rm -rf --ignore-unmatch .
+          fi
+
+          is_current_or_newer() {
+            local file="$1"
+            local previous_number previous_attempt
+            if [[ ! -s "$file" ]]; then
+              return 0
+            fi
+            previous_number="$(jq -r '.sourceRunNumber // 0' "$file")"
+            previous_attempt="$(jq -r '.sourceRunAttempt // 0' "$file")"
+            if (( SOURCE_RUN_NUMBER > previous_number )); then
+              return 0
+            fi
+            if (( SOURCE_RUN_NUMBER == previous_number && SOURCE_RUN_ATTEMPT >= previous_attempt )); then
+              return 0
+            fi
+            return 1
+          }
+
+          publish_scan_result() {
+            local source_file="$1"
+            local destination_file="$2"
+            if is_current_or_newer "$destination_file"; then
+              metadata_args=(
+                --argjson runNumber "$SOURCE_RUN_NUMBER"
+                --argjson runAttempt "$SOURCE_RUN_ATTEMPT"
+              )
+              jq "${metadata_args[@]}" '. + {sourceRunNumber: $runNumber, sourceRunAttempt: $runAttempt}' "$source_file" > "$destination_file"
+            else
+              echo "Ignoring older Sonar scan results from a previous run." >> "$GITHUB_STEP_SUMMARY"
+            fi
+          }
+
+          publish_scan_result "$coverage_file" coverage.json
+          publish_scan_result "$loc_file" lines-of-code.json
+          git add -A -- '*.json'
+          if git diff --cached --quiet; then
+            echo "Sonar scan result badge data is already up to date."
+            exit 0
+          fi
+
+          source_short_sha="$(git rev-parse --short=7 "$SOURCE_SHA")"
+          git commit -m "[SonarScan] Update generated Sonar scan results $source_short_sha"
+          git push origin coverage
