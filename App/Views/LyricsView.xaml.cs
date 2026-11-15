@@ -12,6 +12,7 @@ using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Documents;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
+using Microsoft.UI.Xaml.Media.Animation;
 using LyricSyncForPlex.Core.Clients;
 using LyricSyncForPlex.Core.Lyrics;
 using LyricSyncForPlex.Core.Utils;
@@ -21,6 +22,8 @@ namespace LyricSyncForPlex.Views;
 
 public sealed partial class LyricsView
 {
+    private const double SyncedLyricFontSize = 22;
+
     public MainWindow? MainWindow { get; set; }
 
     internal LyricsFile? LyricsFile;
@@ -33,6 +36,9 @@ public sealed partial class LyricsView
     private int _visibleLines = 3;
     private string? _localPath;
     private readonly List<TextBlock> _syncedBlocks = [];
+    private readonly TranslateTransform _syncedPanelTransform = new();
+    private Storyboard? _syncedLineTransition;
+    private bool _syncedLineTransitionActive;
     private bool _showJapaneseTransliteration;
     private readonly JapaneseTransliterator _japaneseTransliterator = new();
 
@@ -40,6 +46,7 @@ public sealed partial class LyricsView
     {
         InitializeComponent();
 
+        SyncedPanel.RenderTransform = _syncedPanelTransform;
         LySource.Tapped += OnLySourceTapped;
         LyUpdate.Click += OnLyUpdateClicked;
         SyncedPanel.PointerWheelChanged += OnSyncedScroll;
@@ -71,10 +78,6 @@ public sealed partial class LyricsView
             SyncedPanel.Children.Add(tb);
         }
     }
-
-    private static double SizeFor(int dist) => Math.Max(22 - 2 * dist, 12);
-
-    private static double OpacityFor(int dist) => dist == 0 ? 1.0 : Math.Max(0.8 - 0.25 * (dist - 1), 0.35);
 
     /// <summary>
     /// Gets local and remote lyrics. Prioritizes displaying local lyrics.
@@ -247,6 +250,7 @@ public sealed partial class LyricsView
             DispatcherQueue.TryEnqueue(() =>
             {
                 if (trackKey != _trackKey) return;
+                StopSyncedLineTransition();
                 Lrc = parsed;
                 _transliteratedLrc = null;
                 _scrollOffset = 0;
@@ -262,6 +266,7 @@ public sealed partial class LyricsView
             DispatcherQueue.TryEnqueue(() =>
             {
                 if (trackKey != _trackKey) return;
+                StopSyncedLineTransition();
                 Lrc = null;
                 _transliteratedLrc = null;
                 SyncedPanel.Visibility = Visibility.Collapsed;
@@ -281,6 +286,7 @@ public sealed partial class LyricsView
     {
         DispatcherQueue.TryEnqueue(() =>
         {
+            StopSyncedLineTransition();
             Lrc = null;
             _transliteratedLrc = null;
             _pendingRomanizedLyrics = null;
@@ -307,10 +313,17 @@ public sealed partial class LyricsView
             int idx = LrcParser.IndexAt(Lrc, TimeSpan.FromMilliseconds(predictedViewOffsetMs));
             if (idx != CurrentLyricIndex)
             {
+                int previousIndex = CurrentLyricIndex;
+                bool wasFollowingPlayback = _scrollOffset == 0;
                 CurrentLyricIndex = idx;
                 _scrollOffset = 0;
+
+                if (wasFollowingPlayback && previousIndex >= 0 && idx == previousIndex + 1 && StartSyncedLineTransition())
+                    return;
             }
-            UpdateSyncedLyricStack(CurrentLyricIndex + _scrollOffset);
+
+            if (!_syncedLineTransitionActive)
+                UpdateSyncedLyricStack(CurrentLyricIndex + _scrollOffset);
         }
         else
         {
@@ -328,6 +341,8 @@ public sealed partial class LyricsView
     /// <param name="idx">the current lyric index</param>
     internal void UpdateSyncedLyricStack(int idx)
     {
+        StopSyncedLineTransition();
+
         int highlightBlockIndex = -1;
         int curPos = CurrentLyricIndex - idx;
         if (curPos >= -_visibleLines && curPos <= _visibleLines)
@@ -347,10 +362,8 @@ public sealed partial class LyricsView
             bool hasTransliterated = !string.IsNullOrWhiteSpace(transliterated) && !string.Equals(original, transliterated, StringComparison.Ordinal);
             bool isHighlight = idxBlock == highlightBlockIndex;
 
-            int dist = Math.Abs(i);
-            double baseFontSize = SizeFor(dist);
-            tb.FontSize = baseFontSize;
-            tb.Opacity = OpacityFor(dist);
+            tb.FontSize = SyncedLyricFontSize;
+            tb.Opacity = isHighlight ? 1.0 : 0.85;
             tb.FontWeight = FontWeights.Normal;
 
             if (hasOriginal || !hasTransliterated)
@@ -358,8 +371,8 @@ public sealed partial class LyricsView
                 Run origRun = new()
                 {
                     Text = original,
-                    FontWeight = isHighlight ? FontWeights.SemiBold : FontWeights.Normal,
-                    FontSize = baseFontSize
+                    FontWeight = isHighlight ? FontWeights.SemiBold : FontWeights.Light,
+                    FontSize = SyncedLyricFontSize
                 };
                 tb.Inlines.Add(origRun);
             }
@@ -370,8 +383,8 @@ public sealed partial class LyricsView
                 Run transRun = new()
                 {
                     Text = transliterated,
-                    FontWeight = FontWeights.Normal,
-                    FontSize = baseFontSize * 0.85,
+                    FontWeight = isHighlight ? FontWeights.Normal : FontWeights.Light,
+                    FontSize = SyncedLyricFontSize * 0.85,
                     Foreground = new SolidColorBrush(Colors.LightGray)
                 };
                 tb.Inlines.Add(transRun);
@@ -394,9 +407,8 @@ public sealed partial class LyricsView
         {
             TextBlock tb = _syncedBlocks[i];
             tb.Text = string.Empty;
-            int dist = Math.Abs(i - _visibleLines);
-            tb.FontSize = SizeFor(dist);
-            tb.Opacity = OpacityFor(dist);
+            tb.FontSize = SyncedLyricFontSize;
+            tb.Opacity = 1.0;
             tb.FontWeight = FontWeights.Normal;
         }
 
@@ -404,7 +416,7 @@ public sealed partial class LyricsView
 
         TextBlock center = _syncedBlocks[_visibleLines];
         center.Text = lyrics;
-        center.FontSize = 22;
+        center.FontSize = SyncedLyricFontSize;
         center.Opacity = 1.0;
         center.FontWeight = FontWeights.SemiBold;
     }
@@ -434,6 +446,7 @@ public sealed partial class LyricsView
     private void OnSyncedScroll(object sender, PointerRoutedEventArgs e)
     {
         if (Lrc is null || Lrc.Count == 0) return;
+        StopSyncedLineTransition();
         int delta = e.GetCurrentPoint(SyncedPanel).Properties.MouseWheelDelta;
         int dir = delta > 0 ? -1 : 1;
         int maxUp = -CurrentLyricIndex;
@@ -445,6 +458,7 @@ public sealed partial class LyricsView
 
     internal void SetSyncedLineCount(int lines)
     {
+        StopSyncedLineTransition();
         _visibleLines = Math.Max(0, lines);
         RebuildSyncedBlocks();
 
@@ -453,6 +467,61 @@ public sealed partial class LyricsView
             UpdateSyncedLyricStack(CurrentLyricIndex + _scrollOffset);
         else
             UpdateNonSyncedLyricStack(_syncedBlocks.Count > _visibleLines ? _syncedBlocks[_visibleLines].Text : "");
+    }
+
+    /// <summary>
+    /// Slides the current lyric stack up before showing the next line.
+    /// </summary>
+    /// <returns>True when the transition started.</returns>
+    private bool StartSyncedLineTransition()
+    {
+        if (_syncedLineTransitionActive || _visibleLines == 0 || _syncedBlocks.Count <= _visibleLines)
+            return false;
+
+        double lineHeight = _syncedBlocks[_visibleLines].ActualHeight + SyncedPanel.Spacing;
+        if (lineHeight <= 0)
+            return false;
+
+        _syncedLineTransitionActive = true;
+        Storyboard storyboard = new();
+        DoubleAnimation slide = new()
+        {
+            To = -lineHeight,
+            Duration = TimeSpan.FromMilliseconds(360),
+            EasingFunction = new CubicEase { EasingMode = EasingMode.EaseInOut },
+            EnableDependentAnimation = true
+        };
+        Storyboard.SetTarget(slide, _syncedPanelTransform);
+        Storyboard.SetTargetProperty(slide, "Y");
+        storyboard.Children.Add(slide);
+
+        storyboard.Completed += (_, _) =>
+        {
+            if (!ReferenceEquals(_syncedLineTransition, storyboard))
+                return;
+
+            storyboard.Stop();
+            _syncedLineTransition = null;
+            _syncedLineTransitionActive = false;
+            _syncedPanelTransform.Y = 0;
+            UpdateSyncedLyricStack(CurrentLyricIndex + _scrollOffset);
+        };
+
+        _syncedLineTransition = storyboard;
+        storyboard.Begin();
+        return true;
+    }
+
+    /// <summary>
+    /// Stops an in-progress lyric slide and restores the stack to its normal position.
+    /// </summary>
+    private void StopSyncedLineTransition()
+    {
+        Storyboard? storyboard = _syncedLineTransition;
+        _syncedLineTransition = null;
+        _syncedLineTransitionActive = false;
+        storyboard?.Stop();
+        _syncedPanelTransform.Y = 0;
     }
 
     /// <summary>
