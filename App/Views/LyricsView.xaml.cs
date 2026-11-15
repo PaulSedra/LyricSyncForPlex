@@ -13,6 +13,7 @@ using Microsoft.UI.Xaml.Documents;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Media.Animation;
+using LyricSyncForPlex.Controls;
 using LyricSyncForPlex.Core.Clients;
 using LyricSyncForPlex.Core.Lyrics;
 using LyricSyncForPlex.Core.Utils;
@@ -48,6 +49,7 @@ public sealed partial class LyricsView
 
         SyncedPanel.RenderTransform = _syncedPanelTransform;
         LySource.Tapped += OnLySourceTapped;
+        InteractiveCursorGrid.SetIsClickable(LySource, true);
         LyUpdate.Click += OnLyUpdateClicked;
         SyncedPanel.PointerWheelChanged += OnSyncedScroll;
 
@@ -69,9 +71,11 @@ public sealed partial class LyricsView
             TextBlock tb = new()
             {
                 Foreground = new SolidColorBrush(Colors.White),
+                HorizontalAlignment = HorizontalAlignment.Center,
                 TextWrapping = TextWrapping.WrapWholeWords,
                 TextAlignment = TextAlignment.Center
             };
+            InteractiveCursorGrid.SetIsClickable(tb, true);
             int rel = i;
             tb.Tapped += async (_, _) => await SeekToRelativeAsync(rel);
             _syncedBlocks.Add(tb);

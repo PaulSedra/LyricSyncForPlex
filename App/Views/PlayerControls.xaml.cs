@@ -4,6 +4,7 @@ using System.Threading.Tasks;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media.Animation;
+using LyricSyncForPlex.Controls;
 using LyricSyncForPlex.Core.Utils;
 
 namespace LyricSyncForPlex.Views;
@@ -24,6 +25,7 @@ public sealed partial class PlayerControls
     public PlayerControls()
     {
         InitializeComponent();
+        InteractiveCursorGrid.SetIsClickable(SongProgress, true);
 
         ControlsContainer.Loaded += (_, _) =>
         {
