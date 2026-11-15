@@ -33,6 +33,7 @@
                     <TextBlock
                         x:Name="ArtistBlock"
                         FontSize="14"
+                        Opacity="0.85"
                         Text=""/>
                     <StackPanel Orientation="Horizontal">
                         <TextBlock

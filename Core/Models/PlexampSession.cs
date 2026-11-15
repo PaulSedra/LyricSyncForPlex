@@ -4,6 +4,7 @@ public sealed record PlexampSession(
     string RatingKey,
     string Artist,
     string Album,
+    int? AlbumYear,
     string Title,
     int ViewOffsetMs,
     int DurationMs,

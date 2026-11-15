@@ -27,6 +27,7 @@ public sealed partial class MainWindow
 
     // latest plex metadata
     private string _ratingKey = "", _artist = "", _album = "", _title = "", _albumArtUrl = "";
+    private int? _albumYear;
     private bool _trackLiked;
     internal string State = "";
     internal int DurationMs;
@@ -147,6 +148,7 @@ public sealed partial class MainWindow
             if (session is null)
             {
                 _ratingKey = _artist = _album = _title = _albumArtUrl = State = "";
+                _albumYear = null;
                 _lastAppliedPlaybackSpeed = double.NaN;
                 DurationMs = 0;
                 _viewOffsetMs = 0;
@@ -168,7 +170,7 @@ public sealed partial class MainWindow
             ClientId = session.ClientId;
 
             // change detection
-            bool trackChanged = session.RatingKey != _ratingKey || session.Artist != _artist || session.Album != _album || session.Title != _title || npTrackLiked != _trackLiked || session.DurationMs != DurationMs || session.AlbumArtUrl != _albumArtUrl;
+            bool trackChanged = session.RatingKey != _ratingKey || session.Artist != _artist || session.Album != _album || session.AlbumYear != _albumYear || session.Title != _title || npTrackLiked != _trackLiked || session.DurationMs != DurationMs || session.AlbumArtUrl != _albumArtUrl;
             bool stateChanged = !session.State.Equals(State, StringComparison.OrdinalIgnoreCase);
             bool viewOffsetChanged = session.ViewOffsetMs != _viewOffsetMs;
 
@@ -178,6 +180,7 @@ public sealed partial class MainWindow
                 _ratingKey = session.RatingKey;
                 _artist = session.Artist;
                 _album = session.Album;
+                _albumYear = session.AlbumYear;
                 _title = session.Title;
                 _trackLiked = npTrackLiked;
                 _albumArtUrl = session.AlbumArtUrl;
@@ -203,6 +206,7 @@ public sealed partial class MainWindow
         catch (Exception ex)
         {
             _artist = _album = _title = _albumArtUrl = State = "";
+            _albumYear = null;
             DurationMs = 0;
             _viewOffsetMs = 0;
 
@@ -280,12 +284,19 @@ public sealed partial class MainWindow
     }
 
     /// <summary>
-    /// Updates track title/artist and album art.
+    /// Updates track artist, album, title, and album art.
     /// </summary>
     private void UpdateTrackInformation()
     {
         FavoriteIcon.Glyph = _trackLiked ? "\ueb52" : "\ueb51";
-        ArtistBlock.Text = !string.IsNullOrWhiteSpace(_artist) ? _artist : "";
+        string artist = _artist.Trim();
+        string album = _album.Trim();
+        string albumWithYear = album.Length > 0 && _albumYear is > 0
+            ? $"{album} ({_albumYear})"
+            : album;
+        ArtistBlock.Text = artist.Length > 0 && album.Length > 0
+            ? $"{artist}  —  {albumWithYear}"
+            : artist.Length > 0 ? artist : albumWithYear;
         NowPlaying.Text = !string.IsNullOrWhiteSpace(_title) ? _title : "Peace and quiet";
         AlbumArtImage.Source = !string.IsNullOrWhiteSpace(_albumArtUrl) ? new BitmapImage(new Uri(_albumArtUrl)) : null;
     }

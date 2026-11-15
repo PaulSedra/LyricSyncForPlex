@@ -24,6 +24,11 @@ public sealed class PlexApiClient(string plexBaseUrl, string plexToken)
         ["X-Plex-Client-Identifier"] = clientId
     };
 
+    /// <summary>
+    /// Gets the current Plexamp session and its available track and album metadata.
+    /// </summary>
+    /// <param name="ct">Cancellation token for the Plex request.</param>
+    /// <returns>The current session, or <see langword="null"/> when Plexamp has no active track.</returns>
     public async Task<PlexampSession?> GetPlexampSession(CancellationToken ct)
     {
         using HttpRequestMessage request = Clients.Http.HttpRequestMessage(HttpMethod.Get, $"{_baseUrl}/status/sessions", _headers);
@@ -58,6 +63,9 @@ public sealed class PlexApiClient(string plexBaseUrl, string plexToken)
         string ratingKey = tr.Attribute("ratingKey")?.Value ?? "";
         string artist = tr.Attribute("grandparentTitle")?.Value ?? "";
         string album = tr.Attribute("parentTitle")?.Value ?? "";
+        int? albumYear = int.TryParse(tr.Attribute("parentYear")?.Value, out int year) && year > 0
+            ? year
+            : null;
         string title = tr.Attribute("title")?.Value ?? "";
         int duration = int.TryParse(tr.Attribute("duration")?.Value, out int d) ? d : 0;
 
@@ -81,7 +89,7 @@ public sealed class PlexApiClient(string plexBaseUrl, string plexToken)
         if (string.IsNullOrWhiteSpace(artist) && string.IsNullOrWhiteSpace(title))
             return null;
 
-        return new PlexampSession(ratingKey, artist, album, title, offset, duration, state, clientUrl, clientId, artUrl);
+        return new PlexampSession(ratingKey, artist, album, albumYear, title, offset, duration, state, clientUrl, clientId, artUrl);
     }
 
     /// <summary>
