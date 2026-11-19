@@ -1,6 +1,7 @@
 ﻿using System;
 using System.IO;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
+using LyricSyncForPlex.Core.Providers;
 using LyricSyncForPlex.Core.Utils;
 
 namespace LyricSyncForPlex.IntegrationTests;

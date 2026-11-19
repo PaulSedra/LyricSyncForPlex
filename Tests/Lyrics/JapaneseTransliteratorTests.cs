@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using LyricSyncForPlex.Core.Lyrics;
 using LyricSyncForPlex.Core.Models;
+using LyricSyncForPlex.Core.Providers;
 using LyricSyncForPlex.Core.Utils;
 
 namespace LyricSyncForPlex.Tests.Lyrics;

@@ -1,4 +1,4 @@
-﻿using LyricSyncForPlex.Core.Providers;
+﻿namespace LyricSyncForPlex.Core.Providers;
 
 public sealed class TestPathProvider(string path) : IPathProvider
 {

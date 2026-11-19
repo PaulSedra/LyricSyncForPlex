@@ -17,7 +17,10 @@ public static class LrcParser
     public static void SetPathProvider(IPathProvider provider) => _pathProvider = provider;
 
     // [mm:ss] or [mm:ss.xx]
-    private static readonly Regex Stamp = new(@"\[(\d{1,2}):(\d{2})(?:\.(\d{1,2}))?\](.*)", RegexOptions.Compiled);
+    private static readonly Regex Stamp = new(
+        @"\[(\d{1,2}):(\d{2})(?:\.(\d{1,2}))?\](.*)",
+        RegexOptions.Compiled,
+        TimeSpan.FromSeconds(1));
 
 
     /// <summary>
@@ -133,13 +136,6 @@ public static class LrcParser
     public static string CopyLrcTimeSpans(List<SyncedLyricLine> syncedLyrics, string nonSyncedLyrics)
     {
         string[] lyricsList = nonSyncedLyrics.Split('\n');
-
-        // not sure if the following is actually needed
-        // ensures line counts match to keep timestamps aligned
-        // if (lyricsList.Length < syncedLyrics.Count)
-        // {
-        //     Array.Resize(ref lyricsList, syncedLyrics.Count);
-        // }
 
         StringBuilder lrcWriter = new();
         for (int i = 0; i < syncedLyrics.Count; i++)

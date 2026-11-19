@@ -41,24 +41,27 @@ public sealed class PlexApiClient(string plexBaseUrl, string plexToken)
 
         // Find a Plexamp session (prefer state="playing")
         var plexamp = doc.Descendants("Track")
-            .Select(t => new
+            .Select(track =>
             {
-                Track = t,
-                Player = t.Element("Player"),
-                IsPlexamp = string.Equals(
-                    t.Element("Player")?.Attribute("product")?.Value,
-                    "Plexamp",
-                    StringComparison.OrdinalIgnoreCase),
-                State = t.Element("Player")?.Attribute("state")?.Value ?? ""
+                var sessionPlayer = track.Element("Player");
+                return new
+                {
+                    Track = track,
+                    Player = sessionPlayer,
+                    State = sessionPlayer?.Attribute("state")?.Value ?? ""
+                };
             })
-            .Where(x => x.IsPlexamp)
+            .Where(x => string.Equals(
+                x.Player?.Attribute("product")?.Value,
+                "Plexamp",
+                StringComparison.OrdinalIgnoreCase))
             .OrderByDescending(x => string.Equals(x.State, "playing", StringComparison.OrdinalIgnoreCase))
             .FirstOrDefault();
 
         if (plexamp is null) return null;
 
         XElement tr = plexamp.Track;
-        XElement? player = tr.Element("Player");
+        var player = plexamp.Player;
 
         string ratingKey = tr.Attribute("ratingKey")?.Value ?? "";
         string artist = tr.Attribute("grandparentTitle")?.Value ?? "";

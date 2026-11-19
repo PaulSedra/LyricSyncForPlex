@@ -2,6 +2,7 @@ using JetBrains.Annotations;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using LyricSyncForPlex.Core.Clients;
 using LyricSyncForPlex.Core.Models;
+using LyricSyncForPlex.Core.Providers;
 using LyricSyncForPlex.Core.Utils;
 using LyricSyncForPlex.Tests.TestHelpers;
 using System;
