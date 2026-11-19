@@ -37,9 +37,12 @@ public sealed partial class LyricsView
     private int _visibleLines = 3;
     private string? _localPath;
     private readonly List<TextBlock> _syncedBlocks = [];
+    private readonly TextBlock _syncedLineMeasurer = new()
+    {
+        TextWrapping = TextWrapping.NoWrap
+    };
     private readonly TranslateTransform _syncedPanelTransform = new();
     private Storyboard? _syncedLineTransition;
-    private bool _syncedLineTransitionActive;
     private bool _showJapaneseTransliteration;
     private readonly JapaneseTransliterator _japaneseTransliterator = new();
 
@@ -52,6 +55,11 @@ public sealed partial class LyricsView
         InteractiveCursorGrid.SetIsClickable(LySource, true);
         LyUpdate.Click += OnLyUpdateClicked;
         SyncedPanel.PointerWheelChanged += OnSyncedScroll;
+        SyncedPanel.SizeChanged += (_, e) =>
+        {
+            if (Lrc is not null && e.NewSize.Width != e.PreviousSize.Width)
+                UpdateSyncedLyricStack(CurrentLyricIndex + _scrollOffset);
+        };
 
         SetSyncedLineCount(_visibleLines);
     }
@@ -254,7 +262,6 @@ public sealed partial class LyricsView
             DispatcherQueue.TryEnqueue(() =>
             {
                 if (trackKey != _trackKey) return;
-                StopSyncedLineTransition();
                 Lrc = parsed;
                 _transliteratedLrc = null;
                 _scrollOffset = 0;
@@ -297,6 +304,8 @@ public sealed partial class LyricsView
             SyncedPanel.Visibility = Visibility.Visible;
             PlainScroll.Visibility = Visibility.Collapsed;
             if (_syncedBlocks.Count == 0) SetSyncedLineCount(_visibleLines);
+            foreach (TextBlock tb in _syncedBlocks)
+                tb.Width = double.NaN;
             _syncedBlocks[_visibleLines].Text = msg ?? "No lyrics found.";
             LySource.Text = string.Empty;
             ToolTipService.SetToolTip(LySource, null);
@@ -315,18 +324,18 @@ public sealed partial class LyricsView
         if (!string.IsNullOrWhiteSpace(LyricsFile.Synced) && Lrc is not null && Lrc.Count > 0)
         {
             int idx = LrcParser.IndexAt(Lrc, TimeSpan.FromMilliseconds(predictedViewOffsetMs));
-            if (idx != CurrentLyricIndex)
+            int previousIndex = CurrentLyricIndex;
+            if (idx != previousIndex)
             {
-                int previousIndex = CurrentLyricIndex;
                 bool wasFollowingPlayback = _scrollOffset == 0;
                 CurrentLyricIndex = idx;
                 _scrollOffset = 0;
 
-                if (wasFollowingPlayback && previousIndex >= 0 && idx == previousIndex + 1 && StartSyncedLineTransition())
+                if (wasFollowingPlayback && previousIndex >= 0 && idx == previousIndex + 1 && AdvanceSyncedLyricStack())
                     return;
             }
 
-            if (!_syncedLineTransitionActive)
+            if (_syncedLineTransition is null || idx != previousIndex)
                 UpdateSyncedLyricStack(CurrentLyricIndex + _scrollOffset);
         }
         else
@@ -354,6 +363,7 @@ public sealed partial class LyricsView
             highlightBlockIndex = curPos + _visibleLines;
         }
 
+        double availableWidth = SyncedPanel.ActualWidth;
         for (int i = -_visibleLines; i <= _visibleLines; i++)
         {
             int idxBlock = i + _visibleLines;
@@ -369,6 +379,38 @@ public sealed partial class LyricsView
             tb.FontSize = SyncedLyricFontSize;
             tb.Opacity = isHighlight ? 1.0 : 0.85;
             tb.FontWeight = FontWeights.Normal;
+
+            double? stableWidth = null;
+            if (availableWidth > 0 && hasOriginal)
+            {
+                stableWidth = GetStableLyricWidth(
+                    tb,
+                    original,
+                    SyncedLyricFontSize,
+                    FontWeights.Light,
+                    FontWeights.SemiBold,
+                    availableWidth);
+            }
+
+            if (availableWidth > 0 && hasTransliterated)
+            {
+                double? transliteratedWidth = GetStableLyricWidth(
+                    tb,
+                    transliterated,
+                    SyncedLyricFontSize * 0.85,
+                    FontWeights.Light,
+                    FontWeights.Normal,
+                    availableWidth);
+                if (transliteratedWidth.HasValue)
+                {
+                    stableWidth = stableWidth.HasValue
+                        ? Math.Min(stableWidth.Value, transliteratedWidth.Value)
+                        : transliteratedWidth;
+                }
+            }
+
+            // Apply any width reduction before highlighting so heavier text wraps at the same time.
+            tb.Width = stableWidth ?? double.NaN;
 
             if (hasOriginal || !hasTransliterated)
             {
@@ -402,6 +444,46 @@ public sealed partial class LyricsView
     }
 
     /// <summary>
+    /// Measures a lyric segment in its normal and highlighted weights and reserves width when the latter would wrap.
+    /// </summary>
+    /// <param name="line">A displayed lyric block that provides the active font family and language.</param>
+    /// <param name="text">The lyric segment to measure.</param>
+    /// <param name="fontSize">The segment's font size.</param>
+    /// <param name="normalWeight">The font weight used before highlighting.</param>
+    /// <param name="highlightWeight">The font weight used while highlighted.</param>
+    /// <param name="availableWidth">The width available to the lyric panel.</param>
+    /// <returns>A narrower width that makes the segment wrap before highlighting, or <see langword="null"/> when no early wrap is needed.</returns>
+    private double? GetStableLyricWidth(
+        TextBlock line,
+        string text,
+        double fontSize,
+        Windows.UI.Text.FontWeight normalWeight,
+        Windows.UI.Text.FontWeight highlightWeight,
+        double availableWidth)
+    {
+        if (string.IsNullOrWhiteSpace(text) || availableWidth <= 0)
+            return null;
+
+        _syncedLineMeasurer.FontFamily = line.FontFamily;
+        _syncedLineMeasurer.Language = line.Language;
+        _syncedLineMeasurer.FontSize = fontSize;
+        _syncedLineMeasurer.Text = text;
+        _syncedLineMeasurer.FontWeight = normalWeight;
+        _syncedLineMeasurer.Measure(new Windows.Foundation.Size(double.PositiveInfinity, double.PositiveInfinity));
+        double normalWidth = _syncedLineMeasurer.DesiredSize.Width;
+
+        _syncedLineMeasurer.FontWeight = highlightWeight;
+        _syncedLineMeasurer.Measure(new Windows.Foundation.Size(double.PositiveInfinity, double.PositiveInfinity));
+        double highlightWidth = _syncedLineMeasurer.DesiredSize.Width;
+
+        if (highlightWidth <= availableWidth || normalWidth <= 0)
+            return null;
+
+        // Match the normal-weight text's width ratio to the highlighted text's ratio, with a small rounding buffer.
+        return Math.Max(1, availableWidth * normalWidth / highlightWidth - 1);
+    }
+
+    /// <summary>
     /// Updates the lyric stack when no synced lyrics exist. It displays the lyrics on the center line.
     /// </summary>
     /// <param name="lyrics">lyrics to use</param>
@@ -411,6 +493,7 @@ public sealed partial class LyricsView
         {
             TextBlock tb = _syncedBlocks[i];
             tb.Text = string.Empty;
+            tb.Width = double.NaN;
             tb.FontSize = SyncedLyricFontSize;
             tb.Opacity = 1.0;
             tb.FontWeight = FontWeights.Normal;
@@ -450,7 +533,6 @@ public sealed partial class LyricsView
     private void OnSyncedScroll(object sender, PointerRoutedEventArgs e)
     {
         if (Lrc is null || Lrc.Count == 0) return;
-        StopSyncedLineTransition();
         int delta = e.GetCurrentPoint(SyncedPanel).Properties.MouseWheelDelta;
         int dir = delta > 0 ? -1 : 1;
         int maxUp = -CurrentLyricIndex;
@@ -474,23 +556,32 @@ public sealed partial class LyricsView
     }
 
     /// <summary>
-    /// Slides the current lyric stack up before showing the next line.
+    /// Renders the next lyric stack and slides the highlighted line from its previous position.
     /// </summary>
-    /// <returns>True when the transition started.</returns>
-    private bool StartSyncedLineTransition()
+    /// <returns>True when the new stack has been rendered.</returns>
+    private bool AdvanceSyncedLyricStack()
     {
-        if (_syncedLineTransitionActive || _visibleLines == 0 || _syncedBlocks.Count <= _visibleLines)
+        if (_syncedLineTransition is not null || _visibleLines == 0 ||
+            SyncedPanel.Parent is not UIElement viewport)
             return false;
 
-        double lineHeight = _syncedBlocks[_visibleLines].ActualHeight + SyncedPanel.Spacing;
-        if (lineHeight <= 0)
+        TextBlock incoming = _syncedBlocks[_visibleLines + 1];
+        if (incoming.ActualHeight <= 0)
             return false;
 
-        _syncedLineTransitionActive = true;
+        double previousY = LineCenterY(incoming);
+        UpdateSyncedLyricStack(CurrentLyricIndex);
+        SyncedPanel.UpdateLayout();
+
+        double offset = previousY - LineCenterY(_syncedBlocks[_visibleLines]);
+        if (offset <= 0)
+            return true;
+
         Storyboard storyboard = new();
         DoubleAnimation slide = new()
         {
-            To = -lineHeight,
+            From = offset,
+            To = 0,
             Duration = TimeSpan.FromMilliseconds(360),
             EasingFunction = new CubicEase { EasingMode = EasingMode.EaseInOut },
             EnableDependentAnimation = true
@@ -501,19 +592,16 @@ public sealed partial class LyricsView
 
         storyboard.Completed += (_, _) =>
         {
-            if (!ReferenceEquals(_syncedLineTransition, storyboard))
-                return;
-
-            storyboard.Stop();
-            _syncedLineTransition = null;
-            _syncedLineTransitionActive = false;
-            _syncedPanelTransform.Y = 0;
-            UpdateSyncedLyricStack(CurrentLyricIndex + _scrollOffset);
+            if (ReferenceEquals(_syncedLineTransition, storyboard))
+                StopSyncedLineTransition();
         };
 
         _syncedLineTransition = storyboard;
         storyboard.Begin();
         return true;
+
+        double LineCenterY(TextBlock line) => line.TransformToVisual(viewport)
+            .TransformPoint(new Windows.Foundation.Point(0, line.ActualHeight / 2)).Y;
     }
 
     /// <summary>
@@ -523,7 +611,6 @@ public sealed partial class LyricsView
     {
         Storyboard? storyboard = _syncedLineTransition;
         _syncedLineTransition = null;
-        _syncedLineTransitionActive = false;
         storyboard?.Stop();
         _syncedPanelTransform.Y = 0;
     }
