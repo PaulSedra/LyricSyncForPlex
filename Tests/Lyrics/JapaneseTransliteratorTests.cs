@@ -5,23 +5,38 @@ using System.Threading.Tasks;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using LyricSyncForPlex.Core.Lyrics;
 using LyricSyncForPlex.Core.Models;
+using LyricSyncForPlex.Core.Providers;
 using LyricSyncForPlex.Core.Utils;
 
 namespace LyricSyncForPlex.Tests.Lyrics;
 
 [TestClass]
+[DoNotParallelize]
 public class JapaneseTransliteratorTests
 {
+    private string _testRoot;
+
+    [TestCleanup]
+    public void TearDown()
+    {
+        if (_testRoot is null)
+            return;
+
+        LrcParser.SetPathProvider(new DefaultPathProvider());
+        if (Directory.Exists(_testRoot))
+            Directory.Delete(_testRoot, recursive: true);
+    }
+
     [TestMethod]
     public async Task TransliterateAsync_plainJapaneseLyrics_returnsRomaji()
     {
         JapaneseTransliterator transliterator = new();
-        LyricsFile lyrics = new(Synced: null, Plain: "こんにちは", Path: null);
+        LyricsFile lyrics = new(Synced: null, Plain: "こんにちは\r\n\r\nEnglish refrain", Path: null);
 
         LyricsFile result = await transliterator.TransliterateAsync(lyrics, CancellationToken.None);
 
         Assert.IsNotNull(result);
-        Assert.AreEqual("konnichiha", result.Plain);
+        Assert.AreEqual("konnichiha\n\nEnglish refrain", result.Plain!.ReplaceLineEndings("\n"));
     }
 
     [TestMethod]
@@ -61,34 +76,56 @@ public class JapaneseTransliteratorTests
     }
 
     [TestMethod]
-    public void WriteRomanizedLyrics_syncedSource_writesRomanizedLrc()
+    public async Task TransliterateAsync_JapaneseTextWithoutValidTimestampsReturnsNull()
     {
-        string testRoot = Path.Combine(Path.GetTempPath(), "LyricSyncForPlexTests", Guid.NewGuid().ToString("N"));
-        LrcParser.SetPathProvider(new TestPathProvider(testRoot));
+        JapaneseTransliterator transliterator = new();
+        LyricsFile lyrics = new(Synced: "[ar:こんにちは]", Plain: null, Path: null);
 
-        LyricsFile result = JapaneseTransliterator.WriteRomanizedLyrics(
-            new LyricsFile("[00:01.00]konnichiha", null, null),
-            artist: "Artist",
-            album: "Album",
-            title: "Title")!;
-
-        Assert.IsTrue(result.Path!.EndsWith("Title_romanized.lrc", StringComparison.Ordinal));
-        Assert.IsTrue(File.Exists(result.Path));
+        Assert.IsNull(await transliterator.TransliterateAsync(lyrics, CancellationToken.None));
     }
 
     [TestMethod]
-    public void WriteRomanizedLyrics_plainSource_writesRomanizedTxt()
+    public async Task TransliterateAsync_CancelledSyncedRequestStopsConversion()
     {
-        string testRoot = Path.Combine(Path.GetTempPath(), "LyricSyncForPlexTests", Guid.NewGuid().ToString("N"));
-        LrcParser.SetPathProvider(new TestPathProvider(testRoot));
+        JapaneseTransliterator transliterator = new();
+        LyricsFile lyrics = new(Synced: "[00:01.00]こんにちは", Plain: null, Path: null);
 
-        LyricsFile result = JapaneseTransliterator.WriteRomanizedLyrics(
-            new LyricsFile(null, "konnichiha", null),
-            artist: "Artist",
-            album: "Album",
-            title: "Title")!;
+        await Assert.ThrowsAsync<OperationCanceledException>(() =>
+            transliterator.TransliterateAsync(lyrics, new CancellationToken(canceled: true)));
+    }
 
-        Assert.IsTrue(result.Path!.EndsWith("Title_romanized.txt", StringComparison.Ordinal));
-        Assert.IsTrue(File.Exists(result.Path));
+    [TestMethod]
+    [DataRow("[00:01.00]konnichiha", null, ".lrc")]
+    [DataRow(null, "konnichiha", ".txt")]
+    public async Task RomanizedCache_RoundTripsLyricsWithoutReplacingTheOriginal(
+        string synced, string plain, string extension)
+    {
+        _testRoot = Path.Combine(Path.GetTempPath(), "LyricSyncForPlexTests", Guid.NewGuid().ToString("N"));
+        LrcParser.SetPathProvider(new TestPathProvider(_testRoot));
+        LyricsFile original = LrcParser.WriteLyrics(new LyricsFile(null, "こんにちは", null), "Artist", "Album", "Title");
+
+        LyricsFile written = JapaneseTransliterator.WriteRomanizedLyrics(
+            new LyricsFile(synced, plain, null), "Artist", "Album", "Title");
+        LyricsFile cached = await JapaneseTransliterator.GetLocalRomanizedLyricsAsync(
+            "Artist", "Album", "Title", CancellationToken.None);
+        LyricsFile source = await LrcParser.ReadLyricsAsync("Artist", "Album", "Title", CancellationToken.None);
+
+        Assert.IsNotNull(written);
+        Assert.AreEqual("Title_romanized" + extension, Path.GetFileName(written.Path));
+        Assert.AreEqual(new LyricsFile(synced, plain, written.Path), cached);
+        Assert.AreEqual(original, source);
+    }
+
+    [TestMethod]
+    [DataRow("[00:01]line", "[00:01]line", null, null, true)]
+    [DataRow("[00:01]line", "[00:02]line", null, null, false)]
+    [DataRow(null, null, "Verse", "verse", false)]
+    public void HasSameContent_IgnoresPathsButComparesTextAndTiming(
+        string leftSynced, string rightSynced, string leftPlain, string rightPlain, bool expected)
+    {
+        LyricsFile source = new(leftSynced, leftPlain, "source");
+        LyricsFile cached = new(rightSynced, rightPlain, "cache");
+
+        Assert.AreEqual(expected, JapaneseTransliterator.HasSameContent(source, cached));
     }
 }

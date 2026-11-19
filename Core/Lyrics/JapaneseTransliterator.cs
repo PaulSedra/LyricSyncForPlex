@@ -17,7 +17,8 @@ public sealed class JapaneseTransliterator
 
     private static readonly Regex JapaneseText = new(
         @"[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff]",
-        RegexOptions.Compiled);
+        RegexOptions.Compiled,
+        TimeSpan.FromSeconds(1));
 
     private readonly Lazy<KawazuConverter> _converter = new(CreateConverter);
 

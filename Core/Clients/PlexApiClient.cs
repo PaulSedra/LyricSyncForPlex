@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
@@ -12,7 +12,7 @@ namespace LyricSyncForPlex.Core.Clients;
 
 public sealed class PlexApiClient(string plexBaseUrl, string plexToken)
 {
-    private static readonly HttpClient Http = Clients.Http.Client;
+    private readonly HttpClient _http = Clients.Http.Client;
     private readonly string _baseUrl = plexBaseUrl.TrimEnd('/');
     private readonly IReadOnlyDictionary<string, string> _headers = new Dictionary<string, string>
     {
@@ -25,6 +25,18 @@ public sealed class PlexApiClient(string plexBaseUrl, string plexToken)
     };
 
     /// <summary>
+    /// Creates a Plex client using a caller-owned HTTP transport.
+    /// </summary>
+    /// <param name="plexBaseUrl">Base URL for the Plex server.</param>
+    /// <param name="plexToken">Token for authenticated Plex requests.</param>
+    /// <param name="http">Transport used for server and player requests.</param>
+    internal PlexApiClient(string plexBaseUrl, string plexToken, HttpClient http)
+        : this(plexBaseUrl, plexToken)
+    {
+        _http = http;
+    }
+
+    /// <summary>
     /// Gets the current Plexamp session and its available track and album metadata.
     /// </summary>
     /// <param name="ct">Cancellation token for the Plex request.</param>
@@ -33,7 +45,7 @@ public sealed class PlexApiClient(string plexBaseUrl, string plexToken)
     {
         using HttpRequestMessage request = Clients.Http.HttpRequestMessage(HttpMethod.Get, $"{_baseUrl}/status/sessions", _headers);
 
-        HttpResponseMessage response = await Http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct);
+        HttpResponseMessage response = await _http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct);
         response.EnsureSuccessStatusCode();
         string xml = await response.Content.ReadAsStringAsync(ct);
 
@@ -41,24 +53,27 @@ public sealed class PlexApiClient(string plexBaseUrl, string plexToken)
 
         // Find a Plexamp session (prefer state="playing")
         var plexamp = doc.Descendants("Track")
-            .Select(t => new
+            .Select(track =>
             {
-                Track = t,
-                Player = t.Element("Player"),
-                IsPlexamp = string.Equals(
-                    t.Element("Player")?.Attribute("product")?.Value,
-                    "Plexamp",
-                    StringComparison.OrdinalIgnoreCase),
-                State = t.Element("Player")?.Attribute("state")?.Value ?? ""
+                var sessionPlayer = track.Element("Player");
+                return new
+                {
+                    Track = track,
+                    Player = sessionPlayer,
+                    State = sessionPlayer?.Attribute("state")?.Value ?? ""
+                };
             })
-            .Where(x => x.IsPlexamp)
+            .Where(x => string.Equals(
+                x.Player?.Attribute("product")?.Value,
+                "Plexamp",
+                StringComparison.OrdinalIgnoreCase))
             .OrderByDescending(x => string.Equals(x.State, "playing", StringComparison.OrdinalIgnoreCase))
             .FirstOrDefault();
 
         if (plexamp is null) return null;
 
         XElement tr = plexamp.Track;
-        XElement? player = tr.Element("Player");
+        var player = plexamp.Player;
 
         string ratingKey = tr.Attribute("ratingKey")?.Value ?? "";
         string artist = tr.Attribute("grandparentTitle")?.Value ?? "";
@@ -106,7 +121,7 @@ public sealed class PlexApiClient(string plexBaseUrl, string plexToken)
         if (offsetMs < 0) offsetMs = 0;
 
         using HttpRequestMessage request = Clients.Http.HttpRequestMessage(HttpMethod.Get, $"{clientUrl}/player/playback/seekTo?offset={offsetMs}", _headersWithClientId(clientId));
-        HttpResponseMessage response = await Http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct);
+        HttpResponseMessage response = await _http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct);
         return response.IsSuccessStatusCode;
     }
 
@@ -138,7 +153,7 @@ public sealed class PlexApiClient(string plexBaseUrl, string plexToken)
             HttpMethod.Get,
             $"{clientUrl}/player/playback/setParameters?speed={formattedSpeed}&type=music",
             _headersWithClientId(clientId));
-        HttpResponseMessage response = await Http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct);
+        HttpResponseMessage response = await _http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct);
         return response.IsSuccessStatusCode;
     }
 
@@ -172,7 +187,7 @@ public sealed class PlexApiClient(string plexBaseUrl, string plexToken)
         if (string.IsNullOrWhiteSpace(clientId)) return false;
 
         using HttpRequestMessage request = Clients.Http.HttpRequestMessage(HttpMethod.Get, $"{clientUrl}/player/playback/{command}", _headersWithClientId(clientId));
-        HttpResponseMessage response = await Http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct);
+        HttpResponseMessage response = await _http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct);
         return response.IsSuccessStatusCode;
     }
 
@@ -188,7 +203,7 @@ public sealed class PlexApiClient(string plexBaseUrl, string plexToken)
         if (string.IsNullOrWhiteSpace(ratingKey)) return false;
 
         using HttpRequestMessage request = Clients.Http.HttpRequestMessage(HttpMethod.Get, $"{_baseUrl}/library/metadata/{ratingKey}", _headers);
-        HttpResponseMessage response = await Http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct);
+        HttpResponseMessage response = await _http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct);
         if (!response.IsSuccessStatusCode) return false;
 
         string xml = await response.Content.ReadAsStringAsync(ct);
@@ -210,6 +225,6 @@ public sealed class PlexApiClient(string plexBaseUrl, string plexToken)
         string requestUrl = $"{_baseUrl}/:/rate" + $"?key={Uri.EscapeDataString(ratingKey)}" + $"&identifier=com.plexapp.plugins.library" + $"&rating={rating}";
 
         using HttpRequestMessage request = Clients.Http.HttpRequestMessage(HttpMethod.Put, requestUrl, _headers);
-        await Http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct);
+        await _http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct);
     }
 }

@@ -23,4 +23,37 @@ public class ConfigTests
         Assert.AreEqual(1.0, Config.ClampPlaybackSpeed(double.NaN));
         Assert.AreEqual(1.0, Config.ClampPlaybackSpeed(double.PositiveInfinity));
     }
+
+    [TestMethod]
+    public void Normalize_LoadedSettingsKeepUserPreferencesAndClampPlaybackSpeed()
+    {
+        Config config = new()
+        {
+            PlexBaseUrl = "http://plex.test:32400",
+            PlexToken = "test-token",
+            SyncedLyricLines = 5,
+            ShowJapaneseTransliteration = true,
+            PlaybackSpeed = 2.5,
+        };
+
+        config.Normalize();
+
+        Assert.AreEqual(2.0, config.PlaybackSpeed);
+        Assert.AreEqual("http://plex.test:32400", config.PlexBaseUrl);
+        Assert.AreEqual("test-token", config.PlexToken);
+        Assert.AreEqual(5, config.SyncedLyricLines);
+        Assert.IsTrue(config.ShowJapaneseTransliteration);
+    }
+
+    [TestMethod]
+    public void Normalize_OmittedPlaybackSpeedDefaultsToNormalSpeed()
+    {
+        Config config = new() { SyncedLyricLines = 5 };
+
+        config.Normalize();
+
+        Assert.AreEqual(1.0, config.PlaybackSpeed);
+        Assert.AreEqual(5, config.SyncedLyricLines);
+        Assert.IsFalse(config.ShowJapaneseTransliteration);
+    }
 }
